@@ -17,7 +17,9 @@ import {
   ArrowLeft,
   Trash2,
   Bell,
-  MessageCircle
+  MessageCircle,
+  Menu,
+  X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts';
@@ -29,6 +31,7 @@ type View = 'dashboard' | 'sales-points' | 'expenses' | 'point-detail' | 'report
 type ModalType = 'none' | 'new-point' | 'new-sale' | 'new-expense' | 'expiring-alerts' | 'quick-restock';
 
 export default function App() {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [currentView, setCurrentView] = useState<View>('dashboard');
   const [activeModal, setActiveModal] = useState<ModalType>('none');
   const [selectedPoint, setSelectedPoint] = useState<SalesPoint | null>(null);
@@ -430,13 +433,13 @@ export default function App() {
     ];
 
     return (
-      <div className="space-y-8">
-        <header className="flex justify-between items-end">
+      <div className="space-y-6 lg:space-y-8">
+        <header className="flex flex-col lg:flex-row lg:justify-between lg:items-end gap-4 overflow-x-auto pb-2 lg:pb-0 no-scrollbar">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-            <p className="text-slate-500 mt-1">Visão geral do seu negócio de brownies.</p>
+            <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">Dashboard</h1>
+            <p className="text-slate-500 text-sm mt-1">Visão geral do seu negócio.</p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex items-center gap-2 lg:gap-3 flex-nowrap min-w-max pr-4 lg:pr-0">
             {expiringSales.length > 0 && (
               <button
                 onClick={() => setActiveModal('expiring-alerts')}
@@ -451,10 +454,10 @@ export default function App() {
               onClick={() => setActiveModal('quick-restock')}
               className="flex items-center gap-2 px-4 py-2 bg-brand-500 text-white border border-brand-500 rounded-xl text-sm font-medium hover:bg-brand-600 transition-colors shadow-lg shadow-brand-500/20"
             >
-              <Plus className="w-4 h-4" />
-              Reabastecimento Rápido
+              <Plus className="w-4 h-4 shrink-0" />
+              <span className="whitespace-nowrap">Novo Pedido</span>
             </button>
-            <div className="flex bg-slate-100 p-1 rounded-xl">
+            <div className="flex bg-slate-100 p-1 rounded-xl shrink-0">
               <button
                 onClick={() => setPeriodFilter('month')}
                 className={cn(
@@ -571,15 +574,15 @@ export default function App() {
     );
 
     return (
-      <div className="space-y-8">
-        <header className="flex justify-between items-end">
+      <div className="space-y-6 lg:space-y-8">
+        <header className="flex flex-col lg:flex-row lg:justify-between lg:items-end gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Pontos de Venda</h1>
-            <p className="text-slate-500 mt-1">Gerencie seus parceiros e locais de distribuição.</p>
+            <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">Pontos de Venda</h1>
+            <p className="text-slate-500 text-sm mt-1">Gerencie seus parceiros e locais.</p>
           </div>
           <button
             onClick={() => setActiveModal('new-point')}
-            className="flex items-center gap-2 px-4 py-2 bg-brand-500 text-white rounded-xl text-sm font-medium hover:bg-brand-600 transition-all shadow-lg shadow-brand-500/20"
+            className="flex items-center justify-center gap-2 px-4 py-3 bg-brand-500 text-white rounded-xl text-sm font-medium hover:bg-brand-600 transition-all shadow-lg shadow-brand-500/20"
           >
             <Plus className="w-4 h-4" />
             Novo Ponto
@@ -824,15 +827,15 @@ export default function App() {
     );
 
     return (
-      <div className="space-y-8">
-        <header className="flex justify-between items-end">
+      <div className="space-y-6 lg:space-y-8">
+        <header className="flex flex-col lg:flex-row lg:justify-between lg:items-end gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Controle de Compras</h1>
-            <p className="text-slate-500 mt-1">Registre insumos, embalagens e outras despesas.</p>
+            <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">Controle de Compras</h1>
+            <p className="text-slate-500 text-sm mt-1">Registre insumos, embalagens e outras despesas.</p>
           </div>
           <button
             onClick={() => setActiveModal('new-expense')}
-            className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 transition-all shadow-lg shadow-red-500/20"
+            className="flex items-center justify-center gap-2 px-4 py-3 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 transition-all shadow-lg shadow-red-500/20"
           >
             <Plus className="w-4 h-4" />
             Nova Despesa
@@ -851,7 +854,7 @@ export default function App() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          <div className="lg:col-span-3 glass-card overflow-hidden">
+          <div className="lg:col-span-3 glass-card overflow-x-auto no-scrollbar">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50/50 border-y border-slate-100">
@@ -927,13 +930,15 @@ export default function App() {
 
   const renderReports = () => {
     return (
-      <div className="space-y-8">
-        <header>
-          <h1 className="text-3xl font-bold tracking-tight">Histórico de Abastecimentos</h1>
-          <p className="text-slate-500 mt-1">Visualize e filtre todo o histórico de abastecimentos por mês, ponto de venda ou produto.</p>
+      <div className="space-y-6 lg:space-y-8">
+        <header className="flex flex-col lg:flex-row lg:justify-between lg:items-end gap-4 overflow-x-auto pb-2 lg:pb-0 no-scrollbar">
+          <div>
+            <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">Histórico de Abastecimentos</h1>
+            <p className="text-slate-500 text-sm mt-1">Visualize e filtre todo o histórico de abastecimentos.</p>
+          </div>
         </header>
 
-        <div className="glass-card p-6 flex flex-wrap gap-4 items-end bg-white">
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-end gap-4 glass-card p-4 lg:p-6 bg-white overflow-hidden">
           <div className="flex-1 min-w-[200px]">
             <label className="block text-sm font-medium text-slate-700 mb-1">Mês de Referência</label>
             <input
@@ -971,7 +976,7 @@ export default function App() {
           </div>
           <button
             onClick={() => setReportFilters({ month: '', point_id: '', product: '' })}
-            className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 font-medium hover:bg-slate-50 transition-colors"
+            className="px-4 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-all"
           >
             Limpar Filtros
           </button>
@@ -1218,49 +1223,69 @@ export default function App() {
 
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex min-h-screen bg-slate-50 relative">
       {renderModal()}
+
+      {/* Mobile Backdrop */}
+      <AnimatePresence>
+        {isSidebarOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setIsSidebarOpen(false)}
+            className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40 lg:hidden"
+          />
+        )}
+      </AnimatePresence>
+
       {/* Sidebar */}
-      <aside className="w-72 bg-white border-r border-slate-200 p-6 flex flex-col gap-8 sticky top-0 h-screen">
-        <div className="flex items-center gap-3 px-2">
-          <div className="w-10 h-10 bg-brand-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-brand-500/20">
-            <TrendingUp className="w-6 h-6" />
+      <aside className={cn(
+        "fixed lg:sticky top-0 left-0 z-50 h-screen w-72 bg-white border-r border-slate-200 p-6 flex flex-col gap-8 transition-transform duration-300 lg:translate-x-0",
+        isSidebarOpen ? "translate-x-0" : "-translate-x-full"
+      )}>
+        <div className="flex items-center justify-between lg:justify-start gap-3 px-2">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-brand-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-brand-500/20">
+              <TrendingUp className="w-6 h-6" />
+            </div>
+            <span className="text-xl font-bold tracking-tight">BrownieManager</span>
           </div>
-          <span className="text-xl font-bold tracking-tight">BrownieManager</span>
+          <button
+            onClick={() => setIsSidebarOpen(false)}
+            className="lg:hidden p-2 text-slate-500 hover:bg-slate-100 rounded-lg"
+          >
+            <X className="w-6 h-6" />
+          </button>
         </div>
 
         <nav className="flex-1 space-y-2">
-          <button
-            onClick={() => setCurrentView('dashboard')}
-            className={cn("sidebar-item w-full", currentView === 'dashboard' && "sidebar-item-active")}
-          >
-            <LayoutDashboard className="w-5 h-5" />
-            Dashboard
-          </button>
-          <button
-            onClick={() => setCurrentView('sales-points')}
-            className={cn("sidebar-item w-full", (currentView === 'sales-points' || currentView === 'point-detail') && "sidebar-item-active")}
-          >
-            <Store className="w-5 h-5" />
-            Pontos de Venda
-          </button>
-          <button
-            onClick={() => setCurrentView('expenses')}
-            className={cn("sidebar-item w-full", currentView === 'expenses' && "sidebar-item-active")}
-          >
-            <Receipt className="w-5 h-5" />
-            Despesas
-          </button>
-          <button
-            onClick={() => setCurrentView('reports')}
-            className={cn("sidebar-item w-full", currentView === 'reports' && "sidebar-item-active")}
-          >
-            <Filter className="w-5 h-5" />
-            Histórico
-          </button>
+          {[
+            { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+            { id: 'sales-points', label: 'Pontos de Venda', icon: Store, activeOn: ['sales-points', 'point-detail'] },
+            { id: 'expenses', label: 'Despesas', icon: Receipt },
+            { id: 'reports', label: 'Histórico', icon: Filter }
+          ].map((item) => (
+            <button
+              key={item.id}
+              onClick={() => {
+                setCurrentView(item.id as View);
+                setIsSidebarOpen(false);
+              }}
+              className={cn(
+                "sidebar-item w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium",
+                (item.activeOn ? item.activeOn.includes(currentView) : currentView === item.id)
+                  ? "bg-brand-50 text-brand-600 shadow-sm shadow-brand-500/10"
+                  : "text-slate-500 hover:bg-slate-50"
+              )}
+            >
+              <item.icon className="w-5 h-5" />
+              {item.label}
+            </button>
+          ))}
         </nav>
 
-        <div className="mt-auto glass-card p-4 bg-slate-900 text-white border-none">
+        <div className="mt-auto glass-card p-4 bg-slate-900 text-white border-none rounded-2xl">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-brand-500 flex items-center justify-center text-[10px] font-bold">
               ADM
@@ -1274,28 +1299,46 @@ export default function App() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 p-10 overflow-y-auto">
-        {isLoading && (
-          <div className="fixed top-4 right-4 z-50">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-brand-500"></div>
+      <div className="flex-1 flex flex-col min-h-screen">
+        {/* Mobile Header */}
+        <header className="lg:hidden bg-white border-b border-slate-200 p-4 sticky top-0 z-30 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center text-white">
+              <TrendingUp className="w-5 h-5" />
+            </div>
+            <span className="font-bold text-slate-900">BrownieManager</span>
           </div>
-        )}
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={currentView}
-            initial={{ opacity: 0, x: 10 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -10 }}
-            transition={{ duration: 0.2 }}
+          <button
+            onClick={() => setIsSidebarOpen(true)}
+            className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg"
           >
-            {currentView === 'dashboard' && renderDashboard()}
-            {currentView === 'sales-points' && renderSalesPoints()}
-            {currentView === 'point-detail' && renderPointDetail()}
-            {currentView === 'expenses' && renderExpenses()}
-            {currentView === 'reports' && renderReports()}
-          </motion.div>
-        </AnimatePresence>
-      </main>
+            <Menu className="w-6 h-6" />
+          </button>
+        </header>
+
+        <main className="flex-1 p-4 lg:p-10 overflow-y-auto">
+          {isLoading && (
+            <div className="fixed top-4 right-4 z-50 lg:top-24 lg:right-10">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-brand-500"></div>
+            </div>
+          )}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentView}
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -10 }}
+              transition={{ duration: 0.2 }}
+            >
+              {currentView === 'dashboard' && renderDashboard()}
+              {currentView === 'sales-points' && renderSalesPoints()}
+              {currentView === 'point-detail' && renderPointDetail()}
+              {currentView === 'expenses' && renderExpenses()}
+              {currentView === 'reports' && renderReports()}
+            </motion.div>
+          </AnimatePresence>
+        </main>
+      </div>
     </div>
   );
 }
