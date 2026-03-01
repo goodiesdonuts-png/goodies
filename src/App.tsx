@@ -77,17 +77,60 @@ export default function App() {
     }
   }, [currentView, reportFilters]);
 
+  const calculateStats = (salesData: SaleEntry[], expensesData: Expense[]) => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
+    const monthStr = `${currentYear}-${currentMonth}`;
+
+    const filteredSales = periodFilter === 'month'
+      ? salesData.filter(s => s.reference_month === monthStr)
+      : salesData.filter(s => s.delivery_date.startsWith(String(currentYear)));
+
+    const filteredExpenses = periodFilter === 'month'
+      ? expensesData.filter(e => e.date.startsWith(monthStr))
+      : expensesData.filter(e => e.date.startsWith(String(currentYear)));
+
+    const totalSales = filteredSales.reduce((acc, s) => acc + s.total_value, 0);
+    const totalReceived = filteredSales.filter(s => s.payment_status === 'PAGO').reduce((acc, s) => acc + s.total_value, 0);
+    const totalPending = filteredSales.filter(s => s.payment_status === 'ABERTO').reduce((acc, s) => acc + s.total_value, 0);
+    const totalExpensesValue = filteredExpenses.reduce((acc, e) => acc + e.value, 0);
+
+    setStats({
+      totalSales,
+      totalReceived,
+      totalPending,
+      totalExpenses: totalExpensesValue,
+      balance: totalSales - totalExpensesValue
+    });
+  };
+
   const fetchReports = async () => {
+    if (!session) return;
     setIsLoading(true);
     try {
-      const queryParams = new URLSearchParams();
-      if (reportFilters.month) queryParams.append('month', reportFilters.month);
-      if (reportFilters.point_id) queryParams.append('point_id', reportFilters.point_id);
-      if (reportFilters.product) queryParams.append('product', reportFilters.product);
+      let query = supabase
+        .from('sales')
+        .select(`
+          *,
+          sales_points (name, phone)
+        `)
+        .order('delivery_date', { ascending: false });
 
-      const res = await fetch(`/api/reports/sales?${queryParams.toString()}`);
-      const data = await res.json();
-      setReports(data);
+      if (reportFilters.month) query = query.eq('reference_month', reportFilters.month);
+      if (reportFilters.point_id) query = query.eq('sales_point_id', reportFilters.point_id);
+      if (reportFilters.product) query = query.ilike('product_name', `%${reportFilters.product}%`);
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      const formattedData = data.map(s => ({
+        ...s,
+        point_name: (s.sales_points as any)?.name,
+        point_phone: (s.sales_points as any)?.phone
+      }));
+
+      setReports(formattedData);
     } catch (error) {
       console.error("Failed to fetch reports", error);
     } finally {
@@ -99,28 +142,60 @@ export default function App() {
     if (!session) return;
     setIsLoading(true);
     try {
-      const [pointsRes, statsRes, expensesRes, expiringRes, productsRes] = await Promise.all([
-        fetch('/api/sales-points'),
-        fetch(`/api/stats?filter=${periodFilter}`),
-        fetch('/api/expenses'),
-        fetch('/api/expiring-sales'),
-        fetch('/api/products')
-      ]);
+      // Fetch Points
+      const { data: points, error: pointsErr } = await supabase
+        .from('sales_points')
+        .select('*')
+        .order('name');
+      if (pointsErr) throw pointsErr;
 
-      const points = await pointsRes.json();
-      const statsData = await statsRes.json();
-      const expensesData = await expensesRes.json();
-      const expiringData = await expiringRes.json();
-      const productsData = await productsRes.json();
+      // Fetch Sales
+      const { data: sales, error: salesErr } = await supabase
+        .from('sales')
+        .select(`
+          *,
+          sales_points (name, phone)
+        `)
+        .order('delivery_date', { ascending: false });
+      if (salesErr) throw salesErr;
+
+      // Fetch Expenses
+      const { data: expensesData, error: expErr } = await supabase
+        .from('expenses')
+        .select('*')
+        .order('date', { ascending: false });
+      if (expErr) throw expErr;
+
+      const formattedSales = sales.map(s => ({
+        ...s,
+        point_name: (s.sales_points as any)?.name,
+        point_phone: (s.sales_points as any)?.phone
+      }));
 
       setSalesPoints(points);
-      setStats(statsData);
       setExpenses(expensesData);
-      setExpiringSales(expiringData);
-      setProducts(productsData);
 
-      // Show alert if there are expiring sales and we are on dashboard
-      if (expiringData.length > 0 && currentView === 'dashboard') {
+      // Calculate Stats
+      calculateStats(formattedSales, expensesData);
+
+      // Expiring Sales (within 3 days)
+      const today = new Date().toISOString().split('T')[0];
+      const threeDaysLater = new Date();
+      threeDaysLater.setDate(threeDaysLater.getDate() + 3);
+      const threeDaysLaterStr = threeDaysLater.toISOString().split('T')[0];
+
+      const expiring = formattedSales.filter(s =>
+        s.payment_status === 'ABERTO' &&
+        s.due_date >= today &&
+        s.due_date <= threeDaysLaterStr
+      );
+      setExpiringSales(expiring);
+
+      // Distinct products
+      const distinctProducts = Array.from(new Set(formattedSales.map(s => s.product_name))).filter(Boolean) as string[];
+      setProducts(distinctProducts);
+
+      if (expiring.length > 0 && currentView === 'dashboard') {
         setActiveModal('expiring-alerts');
       }
     } catch (error) {
@@ -130,10 +205,14 @@ export default function App() {
     }
   };
 
-  const fetchPointSales = async (pointId: number) => {
+  const fetchPointSales = async (pointId: string | number) => {
     try {
-      const res = await fetch(`/api/sales/${pointId}`);
-      const data = await res.json();
+      const { data, error } = await supabase
+        .from('sales')
+        .select('*')
+        .eq('sales_point_id', pointId)
+        .order('delivery_date', { ascending: false });
+      if (error) throw error;
       setPointSales(data);
     } catch (error) {
       console.error("Failed to fetch point sales", error);
@@ -143,16 +222,16 @@ export default function App() {
   const handleUpdatePhone = async () => {
     if (!selectedPoint) return;
     try {
-      const res = await fetch(`/api/sales-points/${selectedPoint.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: newPhone })
-      });
-      if (res.ok) {
-        setSelectedPoint({ ...selectedPoint, phone: newPhone });
-        setSalesPoints(salesPoints.map(p => p.id === selectedPoint.id ? { ...p, phone: newPhone } : p));
-        setIsEditingPhone(false);
-      }
+      const { error } = await supabase
+        .from('sales_points')
+        .update({ phone: newPhone })
+        .eq('id', selectedPoint.id);
+
+      if (error) throw error;
+
+      setSelectedPoint({ ...selectedPoint, phone: newPhone });
+      setSalesPoints(salesPoints.map(p => p.id === selectedPoint.id ? { ...p, phone: newPhone } : p));
+      setIsEditingPhone(false);
     } catch (error) {
       console.error("Failed to update phone", error);
     }
@@ -172,15 +251,10 @@ export default function App() {
     const phone = formData.get('phone') as string;
 
     try {
-      const res = await fetch('/api/sales-points', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, phone })
-      });
-      if (res.ok) {
-        setActiveModal('none');
-        fetchInitialData();
-      }
+      const { error } = await supabase.from('sales_points').insert([{ name, phone }]);
+      if (error) throw error;
+      setActiveModal('none');
+      fetchInitialData();
     } catch (error) {
       console.error("Failed to add point", error);
     }
@@ -193,6 +267,7 @@ export default function App() {
     const formData = new FormData(e.currentTarget);
     const quantity = Number(formData.get('quantity'));
     const unit_value = Number(formData.get('unit_value'));
+    const delivery_date = formData.get('delivery_date') as string;
 
     const data = {
       sales_point_id: selectedPoint.id,
@@ -200,23 +275,19 @@ export default function App() {
       unit_value,
       total_value: quantity * unit_value,
       manufacturing_date: formData.get('manufacturing_date'),
-      delivery_date: formData.get('delivery_date'),
+      delivery_date,
       due_date: formData.get('due_date'),
       payment_status: 'ABERTO',
-      product_name: formData.get('product_name') || 'Brownie'
+      product_name: formData.get('product_name') || 'Brownie',
+      reference_month: (formData.get('reference_month') as string) || delivery_date?.substring(0, 7)
     };
 
     try {
-      const res = await fetch('/api/sales', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
-      if (res.ok) {
-        setActiveModal('none');
-        fetchPointSales(selectedPoint.id);
-        fetchInitialData();
-      }
+      const { error } = await supabase.from('sales').insert([data]);
+      if (error) throw error;
+      setActiveModal('none');
+      fetchPointSales(selectedPoint.id);
+      fetchInitialData();
     } catch (error) {
       console.error("Failed to add sale", error);
     }
@@ -226,9 +297,10 @@ export default function App() {
     e.preventDefault();
 
     const formData = new FormData(e.currentTarget);
-    const pointId = Number(formData.get('point_id'));
+    const pointId = formData.get('point_id') as string;
     const quantity = Number(formData.get('quantity'));
     const unit_value = Number(formData.get('unit_value'));
+    const delivery_date = formData.get('delivery_date') as string;
 
     const data = {
       sales_point_id: pointId,
@@ -236,22 +308,18 @@ export default function App() {
       unit_value,
       total_value: quantity * unit_value,
       manufacturing_date: formData.get('manufacturing_date'),
-      delivery_date: formData.get('delivery_date'),
+      delivery_date,
       due_date: formData.get('due_date'),
       payment_status: 'ABERTO',
-      product_name: formData.get('product_name') || 'Brownie'
+      product_name: formData.get('product_name') || 'Brownie',
+      reference_month: (formData.get('reference_month') as string) || delivery_date?.substring(0, 7)
     };
 
     try {
-      const res = await fetch('/api/sales', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
-      if (res.ok) {
-        setActiveModal('none');
-        fetchInitialData();
-      }
+      const { error } = await supabase.from('sales').insert([data]);
+      if (error) throw error;
+      setActiveModal('none');
+      fetchInitialData();
     } catch (error) {
       console.error("Failed to add quick restock", error);
     }
@@ -269,27 +337,22 @@ export default function App() {
     };
 
     try {
-      const res = await fetch('/api/expenses', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
-      if (res.ok) {
-        setActiveModal('none');
-        fetchInitialData();
-      }
+      const { error } = await supabase.from('expenses').insert([data]);
+      if (error) throw error;
+      setActiveModal('none');
+      fetchInitialData();
     } catch (error) {
       console.error("Failed to add expense", error);
     }
   };
 
-  const updatePaymentStatus = async (saleId: number, status: 'PAGO' | 'ABERTO') => {
+  const updatePaymentStatus = async (saleId: string | number, status: 'PAGO' | 'ABERTO') => {
     try {
-      await fetch(`/api/sales/${saleId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ payment_status: status })
-      });
+      const { error } = await supabase
+        .from('sales')
+        .update({ payment_status: status })
+        .eq('id', saleId);
+      if (error) throw error;
       if (selectedPoint) fetchPointSales(selectedPoint.id);
       fetchInitialData();
     } catch (error) {
@@ -297,13 +360,20 @@ export default function App() {
     }
   };
 
-  const updateReturnedQuantity = async (saleId: number, quantity: number) => {
+  const updateReturnedQuantity = async (saleId: string | number, quantity: number) => {
     try {
-      await fetch(`/api/sales/${saleId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ returned_quantity: quantity })
-      });
+      // First get current sale to calculate new total
+      const { data: sale, error: fetchErr } = await supabase.from('sales').select('quantity, unit_value').eq('id', saleId).single();
+      if (fetchErr) throw fetchErr;
+
+      const newTotal = (sale.quantity - quantity) * sale.unit_value;
+
+      const { error } = await supabase
+        .from('sales')
+        .update({ returned_quantity: quantity, total_value: newTotal })
+        .eq('id', saleId);
+
+      if (error) throw error;
       if (selectedPoint) fetchPointSales(selectedPoint.id);
       fetchInitialData();
     } catch (error) {
@@ -311,12 +381,13 @@ export default function App() {
     }
   };
 
-  const deleteExpense = async (id: number) => {
+  const deleteExpense = async (id: string | number) => {
     if (!confirm('Tem certeza que deseja excluir esta despesa?')) return;
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/expenses/${id}`, { method: 'DELETE' });
-      if (res.ok) fetchInitialData();
+      const { error } = await supabase.from('expenses').delete().eq('id', id);
+      if (error) throw error;
+      fetchInitialData();
     } catch (error) {
       console.error("Failed to delete expense", error);
     } finally {
@@ -324,15 +395,14 @@ export default function App() {
     }
   };
 
-  const deleteSale = async (id: number) => {
+  const deleteSale = async (id: string | number) => {
     if (!confirm('Tem certeza que deseja excluir esta entrega?')) return;
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/sales/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        if (selectedPoint) fetchPointSales(selectedPoint.id);
-        fetchInitialData();
-      }
+      const { error } = await supabase.from('sales').delete().eq('id', id);
+      if (error) throw error;
+      if (selectedPoint) fetchPointSales(selectedPoint.id);
+      fetchInitialData();
     } catch (error) {
       console.error("Failed to delete sale", error);
     } finally {
@@ -340,13 +410,14 @@ export default function App() {
     }
   };
 
-  const deleteSalesPoint = async (e: React.MouseEvent, id: number) => {
+  const deleteSalesPoint = async (e: React.MouseEvent, id: string | number) => {
     e.stopPropagation();
     if (!confirm('Tem certeza que deseja excluir este ponto de venda? Todas as vendas vinculadas também serão excluídas.')) return;
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/sales-points/${id}`, { method: 'DELETE' });
-      if (res.ok) fetchInitialData();
+      const { error } = await supabase.from('sales_points').delete().eq('id', id);
+      if (error) throw error;
+      fetchInitialData();
     } catch (error) {
       console.error("Failed to delete sales point", error);
     } finally {
@@ -355,7 +426,7 @@ export default function App() {
   };
 
   const sendRestockMessage = (sale: SaleEntry) => {
-    const message = `Olá ${sale.point_name}! Notei que os brownies entregues em ${formatDate(sale.delivery_date)} estão próximos do vencimento (${formatDate(sale.due_date)}). Gostaria de agendar um reabastecimento para garantir produtos sempre fresquinhos?`;
+    const message = `Olá! Notei que os brownies entregues em ${formatDate(sale.delivery_date)} estão próximos do vencimento (${formatDate(sale.due_date)}). Gostaria de agendar um reabastecimento para garantir produtos sempre fresquinhos?`;
     const encodedMessage = encodeURIComponent(message);
     const phone = sale.point_phone?.replace(/\D/g, '');
 

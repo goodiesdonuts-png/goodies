@@ -1,12 +1,13 @@
 export interface SalesPoint {
-  id: number;
+  id: string | number;
   name: string;
   phone?: string;
+  user_id?: string;
 }
 
 export interface SaleEntry {
-  id: number;
-  sales_point_id: number;
+  id: string | number;
+  sales_point_id: string | number;
   quantity: number;
   manufacturing_date: string;
   delivery_date: string;
@@ -20,14 +21,16 @@ export interface SaleEntry {
   point_phone?: string;
   product_name?: string;
   reference_month?: string;
+  user_id?: string;
 }
 
 export interface Expense {
-  id: number;
+  id: string | number;
   date: string;
   product: string;
   value: number;
   category?: string;
+  user_id?: string;
 }
 
 export interface Stats {

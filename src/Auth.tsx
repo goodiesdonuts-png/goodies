@@ -79,11 +79,11 @@ export default function Auth() {
                     <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1">E-mail</label>
                         <input
-                            type="email"
+                            type="text"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             required
-                            placeholder="exemplo@email.com"
+                            placeholder="E-mail ou admin"
                             className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-brand-500/20 outline-none transition-all"
                         />
                     </div>
