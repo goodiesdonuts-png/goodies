@@ -176,8 +176,9 @@ export default function App() {
       if (expiring.length > 0 && currentView === 'dashboard') {
         setActiveModal('expiring-alerts');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to fetch data", error);
+      alert("Erro ao carregar dados do Supabase: " + (error.message || "Verifique suas chaves na Vercel"));
     } finally {
       setIsLoading(false);
     }
@@ -233,8 +234,9 @@ export default function App() {
       if (error) throw error;
       setActiveModal('none');
       fetchInitialData();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to add point", error);
+      alert("Erro ao cadastrar ponto de venda: " + (error.message || "Verifique sua conexão"));
     }
   };
 
@@ -266,8 +268,9 @@ export default function App() {
       setActiveModal('none');
       fetchPointSales(selectedPoint.id);
       fetchInitialData();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to add sale", error);
+      alert("Erro ao cadastrar venda: " + (error.message || "Verifique sua conexão"));
     }
   };
 
@@ -298,8 +301,9 @@ export default function App() {
       if (error) throw error;
       setActiveModal('none');
       fetchInitialData();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to add quick restock", error);
+      alert("Erro ao reabastecer: " + (error.message || "Verifique sua conexão"));
     }
   };
 
@@ -319,8 +323,9 @@ export default function App() {
       if (error) throw error;
       setActiveModal('none');
       fetchInitialData();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to add expense", error);
+      alert("Erro ao cadastrar despesa: " + (error.message || "Verifique sua conexão"));
     }
   };
 
