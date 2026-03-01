@@ -24,8 +24,6 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import type { SalesPoint, SaleEntry, Expense, Stats } from './types';
 import { cn, formatCurrency, formatDate } from './utils';
 import { supabase } from './supabase';
-import Auth from './Auth';
-import { Session } from '@supabase/supabase-js';
 
 type View = 'dashboard' | 'sales-points' | 'expenses' | 'point-detail' | 'reports';
 type ModalType = 'none' | 'new-point' | 'new-sale' | 'new-expense' | 'expiring-alerts' | 'quick-restock';
@@ -43,33 +41,15 @@ export default function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [periodFilter, setPeriodFilter] = useState<'month' | 'year'>('month');
 
-  // Reports State
   const [reports, setReports] = useState<SaleEntry[]>([]);
   const [reportFilters, setReportFilters] = useState({ month: '', point_id: '', product: '' });
   const [products, setProducts] = useState<string[]>([]);
-  const [session, setSession] = useState<Session | null>(null);
-  const [isInitializingAuth, setIsInitializingAuth] = useState(true);
   const [isEditingPhone, setIsEditingPhone] = useState(false);
   const [newPhone, setNewPhone] = useState('');
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setIsInitializingAuth(false);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    if (session) {
-      fetchInitialData();
-    }
-  }, [periodFilter, session]);
+    fetchInitialData();
+  }, [periodFilter]);
 
   useEffect(() => {
     if (currentView === 'reports') {
@@ -106,7 +86,6 @@ export default function App() {
   };
 
   const fetchReports = async () => {
-    if (!session) return;
     setIsLoading(true);
     try {
       let query = supabase
@@ -139,7 +118,6 @@ export default function App() {
   };
 
   const fetchInitialData = async () => {
-    if (!session) return;
     setIsLoading(true);
     try {
       // Fetch Points
@@ -1233,17 +1211,6 @@ export default function App() {
     );
   };
 
-  if (isInitializingAuth) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500"></div>
-      </div>
-    );
-  }
-
-  if (!session) {
-    return <Auth />;
-  }
 
   return (
     <div className="flex min-h-screen bg-slate-50">
@@ -1289,21 +1256,15 @@ export default function App() {
         </nav>
 
         <div className="mt-auto glass-card p-4 bg-slate-900 text-white border-none">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-[10px] font-bold overflow-hidden">
-              {session.user.email?.[0].toUpperCase()}
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-brand-500 flex items-center justify-center text-[10px] font-bold">
+              ADM
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-bold truncate">{session.user.email}</p>
-              <p className="text-[10px] text-slate-400">Usuário Ativo</p>
+              <p className="text-xs font-bold truncate">Administrador</p>
+              <p className="text-[10px] text-slate-400">Sistema Ativo</p>
             </div>
           </div>
-          <button
-            onClick={() => supabase.auth.signOut()}
-            className="w-full py-2 text-xs font-semibold bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors"
-          >
-            Sair do Sistema
-          </button>
         </div>
       </aside>
 
