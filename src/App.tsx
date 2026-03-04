@@ -28,7 +28,7 @@ import { cn, formatCurrency, formatDate } from './utils';
 import { supabase } from './supabase';
 
 type View = 'dashboard' | 'sales-points' | 'expenses' | 'point-detail' | 'reports';
-type ModalType = 'none' | 'new-point' | 'new-sale' | 'new-expense' | 'expiring-alerts' | 'quick-restock';
+type ModalType = 'none' | 'new-point' | 'new-sale' | 'new-expense' | 'expiring-alerts' | 'quick-restock' | 'payment-details';
 
 export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -39,7 +39,10 @@ export default function App() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [pointSales, setPointSales] = useState<SaleEntry[]>([]);
+  const [pointPerformance, setPointPerformance] = useState<any[]>([]);
   const [expiringSales, setExpiringSales] = useState<SaleEntry[]>([]);
+  const [paymentDetailsType, setPaymentDetailsType] = useState<'PAGO' | 'ABERTO'>('ABERTO');
+  const [allSalesForStats, setAllSalesForStats] = useState<SaleEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [periodFilter, setPeriodFilter] = useState<'month' | 'year'>('month');
@@ -86,6 +89,35 @@ export default function App() {
       totalExpenses: totalExpensesValue,
       balance: totalSales - totalExpensesValue
     });
+
+    setAllSalesForStats(filteredSales);
+
+    // Calcular Ranking de Pontos
+    const performanceMap = new Map();
+    salesData.forEach(s => {
+      const pointId = s.sales_point_id;
+      if (!performanceMap.has(pointId)) {
+        performanceMap.set(pointId, {
+          name: s.point_name || 'Desconhecido',
+          totalQuantity: 0,
+          totalBilling: 0,
+          months: new Set()
+        });
+      }
+      const p = performanceMap.get(pointId);
+      p.totalQuantity += (s.quantity - (s.returned_quantity || 0));
+      p.totalBilling += s.total_value;
+      p.months.add(s.reference_month || s.delivery_date.substring(0, 7));
+    });
+
+    const ranking = Array.from(performanceMap.values()).map(p => ({
+      name: p.name,
+      avgQuantity: p.totalQuantity / (p.months.size || 1),
+      avgBilling: p.totalBilling / (p.months.size || 1),
+      totalBilling: p.totalBilling
+    })).sort((a, b) => b.avgBilling - a.avgBilling);
+
+    setPointPerformance(ranking);
   };
 
   const fetchReports = async () => {
@@ -318,7 +350,8 @@ export default function App() {
       product: formData.get('product'),
       value: Number(formData.get('value')),
       date: formData.get('date'),
-      category: formData.get('category')
+      category: formData.get('category'),
+      payment_method: formData.get('payment_method')
     };
 
     try {
@@ -483,19 +516,29 @@ export default function App() {
         </header>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
           {[
-            { label: 'Total de Vendas', value: stats.totalSales, icon: TrendingUp, color: 'text-blue-600', bg: 'bg-blue-50' },
-            { label: 'Total Recebido', value: stats.totalReceived, icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-            { label: 'À Receber', value: stats.totalPending, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
-            { label: 'Saldo Líquido', value: stats.balance, icon: Receipt, color: 'text-slate-900', bg: 'bg-slate-100' },
+            { label: 'Pontos de Venda', value: salesPoints.length, icon: Store, color: 'text-slate-900', bg: 'bg-indigo-50', clickable: false, format: 'raw' },
+            { label: 'Total de Vendas', value: stats.totalSales, icon: TrendingUp, color: 'text-blue-600', bg: 'bg-blue-50', clickable: false, format: 'currency' },
+            { label: 'Total Recebido', value: stats.totalReceived, icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50', clickable: true, type: 'PAGO', format: 'currency' },
+            { label: 'À Receber', value: stats.totalPending, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50', clickable: true, type: 'ABERTO', format: 'currency' },
+            { label: 'Saldo Líquido', value: stats.balance, icon: Receipt, color: 'text-slate-900', bg: 'bg-slate-100', clickable: false, format: 'currency' },
           ].map((stat, i) => (
             <motion.div
               key={i}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.1 }}
-              className="glass-card p-6"
+              onClick={() => {
+                if (stat.clickable) {
+                  setPaymentDetailsType(stat.type as 'PAGO' | 'ABERTO');
+                  setActiveModal('payment-details');
+                }
+              }}
+              className={cn(
+                "glass-card p-6",
+                stat.clickable && "cursor-pointer hover:shadow-md transition-all hover:border-brand-200"
+              )}
             >
               <div className="flex justify-between items-start mb-4">
                 <div className={cn("p-3 rounded-xl", stat.bg)}>
@@ -507,7 +550,9 @@ export default function App() {
                 </span>
               </div>
               <p className="text-sm font-medium text-slate-500">{stat.label}</p>
-              <h3 className="text-2xl font-bold mt-1">{formatCurrency(stat.value)}</h3>
+              <h3 className="text-2xl font-bold mt-1">
+                {stat.format === 'currency' ? formatCurrency(stat.value) : stat.value}
+              </h3>
             </motion.div>
           ))}
         </div>
@@ -562,6 +607,41 @@ export default function App() {
                 <p className="text-center text-slate-400 py-8 italic">Nenhuma despesa registrada.</p>
               )}
             </div>
+          </div>
+        </div>
+
+        {/* Ranking of Sales Points */}
+        <div className="glass-card p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-lg font-semibold">Ranking de Performance (Média Mensal)</h3>
+            <span className="text-xs text-slate-400">Baseado em todo o histórico</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50/50 border-y border-slate-100">
+                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Posição</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Ponto de Venda</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase text-center">Média Vendas/Mês</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase text-right">Média Faturamento/Mês</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {pointPerformance.map((point, i) => (
+                  <tr key={i} className="hover:bg-slate-50/50 transition-colors">
+                    <td className="px-4 py-4 text-sm font-bold text-slate-400">#{i + 1}</td>
+                    <td className="px-4 py-4 text-sm font-bold text-slate-900">{point.name}</td>
+                    <td className="px-4 py-4 text-sm text-slate-600 text-center">{point.avgQuantity.toFixed(1)} un</td>
+                    <td className="px-4 py-4 text-sm font-bold text-brand-600 text-right">{formatCurrency(point.avgBilling)}</td>
+                  </tr>
+                ))}
+                {pointPerformance.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-8 text-center text-slate-400 italic">Aguardando dados de vendas para calcular o ranking...</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -861,6 +941,7 @@ export default function App() {
                   <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Data</th>
                   <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Produto/Serviço</th>
                   <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Categoria</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Pagamento</th>
                   <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Valor</th>
                   <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Ações</th>
                 </tr>
@@ -874,6 +955,9 @@ export default function App() {
                       <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded-md text-xs font-medium">
                         {expense.category || 'Insumos'}
                       </span>
+                    </td>
+                    <td className="px-6 py-4 text-sm font-medium text-slate-600">
+                      {expense.payment_method || 'DINHEIRO'}
                     </td>
                     <td className="px-6 py-4 text-sm font-bold text-red-600 text-right">{formatCurrency(expense.value)}</td>
                     <td className="px-6 py-4 text-right">
@@ -1048,6 +1132,7 @@ export default function App() {
               {activeModal === 'new-sale' && 'Nova Entrega'}
               {activeModal === 'new-expense' && 'Nova Despesa'}
               {activeModal === 'quick-restock' && 'Reabastecimento Rápido'}
+              {activeModal === 'payment-details' && (paymentDetailsType === 'PAGO' ? 'Pontos que já pagaram' : 'Pontos com pagamentos pendentes')}
             </h3>
             <button onClick={() => setActiveModal('none')} className="text-slate-400 hover:text-slate-600">
               <Plus className="w-6 h-6 rotate-45" />
@@ -1063,6 +1148,37 @@ export default function App() {
             }
             className="p-6 space-y-4"
           >
+            {activeModal === 'payment-details' && (() => {
+              const pointsSummary = new Map();
+              allSalesForStats.forEach(s => {
+                if (s.payment_status === paymentDetailsType) {
+                  const pid = s.sales_point_id;
+                  if (!pointsSummary.has(pid)) {
+                    pointsSummary.set(pid, { name: s.point_name, total: 0 });
+                  }
+                  pointsSummary.get(pid).total += s.total_value;
+                }
+              });
+              const list = Array.from(pointsSummary.values()).sort((a, b) => b.total - a.total);
+
+              return (
+                <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 no-scrollbar">
+                  {list.length > 0 ? (
+                    list.map((item, idx) => (
+                      <div key={idx} className="flex justify-between items-center p-4 bg-slate-50 rounded-xl border border-slate-100 hover:bg-slate-100 transition-colors">
+                        <span className="font-semibold text-slate-700">{item.name}</span>
+                        <span className={cn("font-bold", paymentDetailsType === 'PAGO' ? "text-emerald-600" : "text-amber-600")}>
+                          {formatCurrency(item.total)}
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-center text-slate-400 py-8 italic">Nenhum registro encontrado para este período.</p>
+                  )}
+                </div>
+              );
+            })()}
+
             {activeModal === 'new-point' && (
               <div className="space-y-4">
                 <div>
@@ -1168,9 +1284,19 @@ export default function App() {
                     </select>
                   </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Data</label>
-                  <input name="date" type="date" required className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-500/20 outline-none" />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Data</label>
+                    <input name="date" type="date" required className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-500/20 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Pagamento</label>
+                    <select name="payment_method" required className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-500/20 outline-none">
+                      <option value="DINHEIRO">Dinheiro</option>
+                      <option value="DÉBITO">Cartão de Débito</option>
+                      <option value="CRÉDITO">Cartão de Crédito</option>
+                    </select>
+                  </div>
                 </div>
               </>
             )}
@@ -1198,7 +1324,7 @@ export default function App() {
               </div>
             )}
 
-            {activeModal !== 'expiring-alerts' && (
+            {activeModal !== 'expiring-alerts' && activeModal !== 'payment-details' && (
               <div className="pt-4 flex gap-3">
                 <button
                   type="button"
@@ -1212,6 +1338,18 @@ export default function App() {
                   className="flex-1 px-4 py-2 bg-brand-500 text-white rounded-xl font-medium hover:bg-brand-600 transition-colors shadow-lg shadow-brand-500/20"
                 >
                   Salvar
+                </button>
+              </div>
+            )}
+
+            {activeModal === 'payment-details' && (
+              <div className="pt-4">
+                <button
+                  type="button"
+                  onClick={() => setActiveModal('none')}
+                  className="w-full px-4 py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-colors"
+                >
+                  Fechar
                 </button>
               </div>
             )}

@@ -30,6 +30,7 @@ export interface Expense {
   product: string;
   value: number;
   category?: string;
+  payment_method?: 'DÉBITO' | 'DINHEIRO' | 'CRÉDITO';
   user_id?: string;
 }
 
