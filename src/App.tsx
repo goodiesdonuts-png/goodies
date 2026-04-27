@@ -45,7 +45,11 @@ export default function App() {
   const [allSalesForStats, setAllSalesForStats] = useState<SaleEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [periodFilter, setPeriodFilter] = useState<'month' | 'year'>('month');
+  const [periodFilter, setPeriodFilter] = useState<string>(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [expenseMethodFilter, setExpenseMethodFilter] = useState<string>('');
 
   const [reports, setReports] = useState<SaleEntry[]>([]);
   const [reportFilters, setReportFilters] = useState({ month: '', point_id: '', product: '' });
@@ -66,16 +70,16 @@ export default function App() {
   const calculateStats = (salesData: SaleEntry[], expensesData: Expense[]) => {
     const now = new Date();
     const currentYear = now.getFullYear();
-    const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
-    const monthStr = `${currentYear}-${currentMonth}`;
+    const isYearFilter = periodFilter === 'year';
+    const yearStr = isYearFilter ? String(currentYear) : periodFilter.substring(0, 4);
 
-    const filteredSales = periodFilter === 'month'
-      ? salesData.filter(s => s.reference_month === monthStr)
-      : salesData.filter(s => s.delivery_date.startsWith(String(currentYear)));
+    const filteredSales = !isYearFilter
+      ? salesData.filter(s => s.reference_month === periodFilter)
+      : salesData.filter(s => s.delivery_date.startsWith(yearStr));
 
-    const filteredExpenses = periodFilter === 'month'
-      ? expensesData.filter(e => e.date.startsWith(monthStr))
-      : expensesData.filter(e => e.date.startsWith(String(currentYear)));
+    const filteredExpenses = !isYearFilter
+      ? expensesData.filter(e => e.date.startsWith(periodFilter))
+      : expensesData.filter(e => e.date.startsWith(yearStr));
 
     const totalSales = filteredSales.reduce((acc, s) => acc + s.total_value, 0);
     const totalPending = filteredSales.filter(s => s.payment_status === 'ABERTO').reduce((acc, s) => acc + s.total_value, 0);
@@ -85,10 +89,10 @@ export default function App() {
     const receivedSales = salesData.filter(s => {
       if (s.payment_status !== 'PAGO') return false;
       const paymentDateToUse = s.payment_date || s.reference_month || s.delivery_date?.substring(0, 7);
-      if (periodFilter === 'month') {
-        return paymentDateToUse?.startsWith(monthStr);
+      if (!isYearFilter) {
+        return paymentDateToUse?.startsWith(periodFilter);
       } else {
-        return paymentDateToUse?.startsWith(String(currentYear));
+        return paymentDateToUse?.startsWith(yearStr);
       }
     });
     const totalReceived = receivedSales.reduce((acc, s) => acc + s.total_value, 0);
@@ -503,21 +507,22 @@ export default function App() {
               <Plus className="w-4 h-4 shrink-0" />
               <span className="whitespace-nowrap">Novo Pedido</span>
             </button>
-            <div className="flex bg-slate-100 p-1 rounded-xl shrink-0">
-              <button
-                onClick={() => setPeriodFilter('month')}
+            <div className="flex bg-slate-100 p-1 rounded-xl shrink-0 items-center">
+              <input
+                type="month"
+                value={periodFilter !== 'year' ? periodFilter : ''}
+                onChange={(e) => {
+                  if (e.target.value) setPeriodFilter(e.target.value);
+                }}
                 className={cn(
-                  "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
-                  periodFilter === 'month' ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  "px-3 py-1.5 rounded-lg text-sm font-medium outline-none transition-colors",
+                  periodFilter !== 'year' ? "bg-white text-slate-800 shadow-sm" : "bg-transparent text-slate-500 hover:text-slate-700"
                 )}
-              >
-                <Calendar className="w-4 h-4" />
-                Este Mês
-              </button>
+              />
               <button
                 onClick={() => setPeriodFilter('year')}
                 className={cn(
-                  "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+                  "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ml-1",
                   periodFilter === 'year' ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
                 )}
               >
@@ -531,10 +536,10 @@ export default function App() {
         {/* Stats Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
           {[
-            { label: 'Pontos de Venda', value: salesPoints.length, icon: Store, color: 'text-slate-900', bg: 'bg-indigo-50', clickable: false, format: 'raw' },
+            { label: 'Pontos de Vendas', value: salesPoints.length, icon: Store, color: 'text-slate-900', bg: 'bg-indigo-50', clickable: false, format: 'raw' },
             { label: 'Total de Vendas', value: stats.totalSales, icon: TrendingUp, color: 'text-blue-600', bg: 'bg-blue-50', clickable: false, format: 'currency' },
             { label: 'Total Recebido', value: stats.totalReceived, icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50', clickable: true, type: 'PAGO', format: 'currency' },
-            { label: 'À Receber', value: stats.totalPending, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50', clickable: true, type: 'ABERTO', format: 'currency' },
+            { label: 'A receber', value: stats.totalPending, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50', clickable: true, type: 'ABERTO', format: 'currency' },
             { label: 'Saldo Líquido', value: stats.balance, icon: Receipt, color: 'text-slate-900', bg: 'bg-slate-100', clickable: false, format: 'currency' },
           ].map((stat, i) => (
             <motion.div
@@ -670,7 +675,7 @@ export default function App() {
       <div className="space-y-6 lg:space-y-8">
         <header className="flex flex-col lg:flex-row lg:justify-between lg:items-end gap-4">
           <div>
-            <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">Pontos de Venda</h1>
+            <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">Pontos de Vendas</h1>
             <p className="text-slate-500 text-sm mt-1">Gerencie seus parceiros e locais.</p>
           </div>
           <button
@@ -914,10 +919,11 @@ export default function App() {
   };
 
   const renderExpenses = () => {
-    const filteredExpenses = expenses.filter(e =>
-      e.product.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      e.category?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredExpenses = expenses.filter(e => {
+      const matchesSearch = e.product.toLowerCase().includes(searchTerm.toLowerCase()) || e.category?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesMethod = expenseMethodFilter ? e.payment_method === expenseMethodFilter : true;
+      return matchesSearch && matchesMethod;
+    });
 
     return (
       <div className="space-y-6 lg:space-y-8">
@@ -935,15 +941,29 @@ export default function App() {
           </button>
         </header>
 
-        <div className="relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Buscar despesa..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 transition-all"
-          />
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-end gap-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Buscar despesa..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 transition-all"
+            />
+          </div>
+          <div className="min-w-[200px]">
+            <select
+              value={expenseMethodFilter}
+              onChange={(e) => setExpenseMethodFilter(e.target.value)}
+              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 transition-all"
+            >
+              <option value="">Todos os Pagamentos</option>
+              <option value="DINHEIRO">Dinheiro</option>
+              <option value="DÉBITO">Débito</option>
+              <option value="CRÉDITO">Crédito</option>
+            </select>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -1413,7 +1433,7 @@ export default function App() {
         <nav className="flex-1 space-y-2">
           {[
             { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-            { id: 'sales-points', label: 'Pontos de Venda', icon: Store, activeOn: ['sales-points', 'point-detail'] },
+            { id: 'sales-points', label: 'Pontos de Vendas', icon: Store, activeOn: ['sales-points', 'point-detail'] },
             { id: 'expenses', label: 'Despesas', icon: Receipt },
             { id: 'reports', label: 'Histórico', icon: Filter }
           ].map((item) => (
