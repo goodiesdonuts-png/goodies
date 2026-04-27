@@ -78,9 +78,20 @@ export default function App() {
       : expensesData.filter(e => e.date.startsWith(String(currentYear)));
 
     const totalSales = filteredSales.reduce((acc, s) => acc + s.total_value, 0);
-    const totalReceived = filteredSales.filter(s => s.payment_status === 'PAGO').reduce((acc, s) => acc + s.total_value, 0);
     const totalPending = filteredSales.filter(s => s.payment_status === 'ABERTO').reduce((acc, s) => acc + s.total_value, 0);
     const totalExpensesValue = filteredExpenses.reduce((acc, e) => acc + e.value, 0);
+
+    // Calcular o total recebido baseado na data de pagamento real
+    const receivedSales = salesData.filter(s => {
+      if (s.payment_status !== 'PAGO') return false;
+      const paymentDateToUse = s.payment_date || s.reference_month || s.delivery_date?.substring(0, 7);
+      if (periodFilter === 'month') {
+        return paymentDateToUse?.startsWith(monthStr);
+      } else {
+        return paymentDateToUse?.startsWith(String(currentYear));
+      }
+    });
+    const totalReceived = receivedSales.reduce((acc, s) => acc + s.total_value, 0);
 
     setStats({
       totalSales,
@@ -90,7 +101,8 @@ export default function App() {
       balance: totalSales - totalExpensesValue
     });
 
-    setAllSalesForStats(filteredSales);
+    const pendingSales = filteredSales.filter(s => s.payment_status === 'ABERTO');
+    setAllSalesForStats([...pendingSales, ...receivedSales]);
 
     // Calcular Ranking de Pontos
     const performanceMap = new Map();
@@ -367,9 +379,10 @@ export default function App() {
 
   const updatePaymentStatus = async (saleId: string | number, status: 'PAGO' | 'ABERTO') => {
     try {
+      const paymentDate = status === 'PAGO' ? new Date().toISOString().split('T')[0] : null;
       const { error } = await supabase
         .from('sales')
-        .update({ payment_status: status })
+        .update({ payment_status: status, payment_date: paymentDate })
         .eq('id', saleId);
       if (error) throw error;
       if (selectedPoint) fetchPointSales(selectedPoint.id);

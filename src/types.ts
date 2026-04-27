@@ -17,6 +17,7 @@ export interface SaleEntry {
   unit_value: number;
   total_value: number;
   payment_status: 'PAGO' | 'ABERTO';
+  payment_date?: string;
   point_name?: string;
   point_phone?: string;
   product_name?: string;
