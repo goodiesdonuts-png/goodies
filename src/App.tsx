@@ -1481,7 +1481,9 @@ export default function App() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Despesas Variáveis por un. (R$)</label>
-                    <p className="text-xs text-slate-500 mb-1">Embalagens, taxas de cartão, comissões.</p>
+                    <p className="text-[11px] text-slate-500 mb-2 leading-relaxed">
+                      <strong>O que é:</strong> Custos que só ocorrem quando você vende. Ex: embalagens, taxas de cartão, comissões.
+                    </p>
                     <input type="number" step="0.01" value={activeProfile.variableCosts} onChange={(e) => updateProfile('variableCosts', e.target.value)} className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-500/20 outline-none" />
                   </div>
                 </div>
@@ -1489,7 +1491,9 @@ export default function App() {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Despesas Fixas Mensais (R$)</label>
-                    <p className="text-xs text-slate-500 mb-1">Luz, água, aluguel, salários.</p>
+                    <p className="text-[11px] text-slate-500 mb-2 leading-relaxed">
+                      <strong>O que é:</strong> Contas que você paga todo mês, vendendo ou não. Ex: aluguel, luz, salários, internet.
+                    </p>
                     <input type="number" step="0.01" value={activeProfile.fixedCosts} onChange={(e) => updateProfile('fixedCosts', e.target.value)} className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-500/20 outline-none" />
                   </div>
                   <div>
@@ -1505,17 +1509,23 @@ export default function App() {
               <div className="glass-card p-4 bg-indigo-50/50">
                 <p className="text-sm font-medium text-slate-500 mb-1">CMV (Custo Merc. Vendida)</p>
                 <p className="text-2xl font-bold text-slate-800">{formatCurrency(cmv)}</p>
-                <p className="text-xs text-slate-500 mt-1">Insumos + Var. Unitária</p>
+                <p className="text-[11px] text-slate-500 mt-2 leading-relaxed">
+                  <strong>O que é:</strong> É a soma dos insumos com as despesas variáveis unitárias. Representa o custo total para produzir e entregar 1 unidade.
+                </p>
               </div>
               <div className="glass-card p-4 bg-blue-50/50">
                 <p className="text-sm font-medium text-slate-500 mb-1">Markup</p>
                 <p className="text-2xl font-bold text-slate-800">{markup.toFixed(2)}x</p>
-                <p className="text-xs text-slate-500 mt-1">Multiplicador do custo</p>
+                <p className="text-[11px] text-slate-500 mt-2 leading-relaxed">
+                  <strong>O que é:</strong> Fator multiplicador. Mostra quantas vezes o seu preço de venda é maior que o custo de produção (CMV).
+                </p>
               </div>
               <div className="glass-card p-4 bg-amber-50/50">
                 <p className="text-sm font-medium text-slate-500 mb-1">Ponto de Equilíbrio</p>
                 <p className="text-2xl font-bold text-slate-800">{Math.ceil(breakEven)} un.</p>
-                <p className="text-xs text-slate-500 mt-1">P/ pagar as despesas fixas</p>
+                <p className="text-[11px] text-slate-500 mt-2 leading-relaxed">
+                  <strong>O que é o Break-even:</strong> Número exato de unidades que você precisa vender no mês apenas para pagar as Despesas Fixas (ficar no zero a zero).
+                </p>
               </div>
             </div>
 
@@ -1527,7 +1537,9 @@ export default function App() {
                 </p>
                 <p className="text-3xl font-bold text-emerald-600">{formatCurrency(contributionMargin)}</p>
                 <p className="text-sm font-medium text-emerald-700/70">{contributionMarginPct.toFixed(1)}% do preço de venda</p>
-                <p className="text-xs text-slate-500 mt-2">O quanto sobra de cada unidade vendida para pagar as contas fixas e gerar lucro.</p>
+                <p className="text-[11px] text-slate-500 mt-3 leading-relaxed">
+                  <strong>O que é:</strong> É o valor que sobra de cada venda (Preço menos o CMV). É com esse dinheiro que você vai pagar as contas fixas da empresa e, depois, tirar o seu lucro.
+                </p>
               </div>
 
               <div className={cn("glass-card p-6 border-l-4", netProfit > 0 ? "border-brand-500" : "border-red-500")}>
@@ -1541,7 +1553,9 @@ export default function App() {
                 <p className={cn("text-sm font-medium", netProfit > 0 ? "text-brand-700/70" : "text-red-700/70")}>
                   {netProfitPct.toFixed(1)}% de lucro líquido
                 </p>
-                <p className="text-xs text-slate-500 mt-2">O lucro de verdade que vai pro seu bolso, já descontando a fatia das contas fixas.</p>
+                <p className="text-[11px] text-slate-500 mt-3 leading-relaxed">
+                  <strong>O que é:</strong> O dinheiro que realmente vai para o seu bolso (livre). Calculado subtraindo a fatia (rateio) das Despesas Fixas do valor da Margem de Contribuição.
+                </p>
               </div>
             </div>
 
