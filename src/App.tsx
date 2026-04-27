@@ -19,7 +19,10 @@ import {
   Bell,
   MessageCircle,
   Menu,
-  X
+  X,
+  Calculator,
+  AlertTriangle,
+  Info
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts';
@@ -27,7 +30,7 @@ import type { SalesPoint, SaleEntry, Expense, Stats } from './types';
 import { cn, formatCurrency, formatDate } from './utils';
 import { supabase } from './supabase';
 
-type View = 'dashboard' | 'sales-points' | 'expenses' | 'point-detail' | 'reports';
+type View = 'dashboard' | 'sales-points' | 'expenses' | 'point-detail' | 'reports' | 'pricing';
 type ModalType = 'none' | 'new-point' | 'new-sale' | 'new-expense' | 'expiring-alerts' | 'quick-restock' | 'payment-details';
 
 export default function App() {
@@ -56,6 +59,16 @@ export default function App() {
   const [products, setProducts] = useState<string[]>([]);
   const [isEditingPhone, setIsEditingPhone] = useState(false);
   const [newPhone, setNewPhone] = useState('');
+
+  const [pricingProfiles, setPricingProfiles] = useState<any[]>(() => {
+    const saved = localStorage.getItem('beik-pricing-profiles');
+    return saved ? JSON.parse(saved) : [{ id: '1', name: 'Brownie Tradicional', ingredientsCost: 2.50, variableCosts: 0.50, fixedCosts: 1000, salesExpectation: 500, salePrice: 8.00 }];
+  });
+  const [activePricingId, setActivePricingId] = useState<string>('1');
+
+  useEffect(() => {
+    localStorage.setItem('beik-pricing-profiles', JSON.stringify(pricingProfiles));
+  }, [pricingProfiles]);
 
   useEffect(() => {
     fetchInitialData();
@@ -1391,6 +1404,180 @@ export default function App() {
       </div>
     );
   };
+  const renderPricing = () => {
+    const activeProfile = pricingProfiles.find(p => p.id === activePricingId) || pricingProfiles[0];
+
+    const updateProfile = (key: string, value: string | number) => {
+      setPricingProfiles(prev => prev.map(p => 
+        p.id === activeProfile.id ? { ...p, [key]: typeof value === 'string' && key !== 'name' ? Number(value) || 0 : value } : p
+      ));
+    };
+
+    const cmv = (activeProfile.ingredientsCost || 0) + (activeProfile.variableCosts || 0);
+    const contributionMargin = (activeProfile.salePrice || 0) - cmv;
+    const contributionMarginPct = activeProfile.salePrice ? (contributionMargin / activeProfile.salePrice) * 100 : 0;
+    const breakEven = contributionMargin > 0 ? (activeProfile.fixedCosts || 0) / contributionMargin : 0;
+    const markup = cmv > 0 ? (activeProfile.salePrice || 0) / cmv : 0;
+    const fixedCostPerUnit = (activeProfile.salesExpectation || 0) > 0 ? (activeProfile.fixedCosts || 0) / activeProfile.salesExpectation : 0;
+    const netProfit = contributionMargin - fixedCostPerUnit;
+    const netProfitPct = activeProfile.salePrice ? (netProfit / activeProfile.salePrice) * 100 : 0;
+
+    return (
+      <div className="space-y-6 lg:space-y-8">
+        <header className="flex flex-col lg:flex-row lg:justify-between lg:items-end gap-4">
+          <div>
+            <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">Gestão de Precificação</h1>
+            <p className="text-slate-500 text-sm mt-1">Análise detalhada de custos, margens e ponto de equilíbrio por produto.</p>
+          </div>
+        </header>
+
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          <div className="glass-card p-6 lg:col-span-1 space-y-4">
+            <h2 className="text-lg font-bold text-slate-800">Seus Produtos</h2>
+            <div className="space-y-2">
+              {pricingProfiles.map(p => (
+                <button
+                  key={p.id}
+                  onClick={() => setActivePricingId(p.id)}
+                  className={cn(
+                    "w-full text-left px-4 py-3 rounded-xl transition-colors font-medium text-sm",
+                    activePricingId === p.id ? "bg-brand-50 text-brand-700 border border-brand-200" : "hover:bg-slate-50 text-slate-600 border border-transparent"
+                  )}
+                >
+                  {p.name}
+                </button>
+              ))}
+              <button
+                onClick={() => {
+                  const newId = String(Date.now());
+                  setPricingProfiles([...pricingProfiles, { id: newId, name: 'Novo Produto', ingredientsCost: 0, variableCosts: 0, fixedCosts: 0, salesExpectation: 100, salePrice: 0 }]);
+                  setActivePricingId(newId);
+                }}
+                className="w-full text-left px-4 py-3 rounded-xl hover:bg-slate-50 text-slate-500 border border-dashed border-slate-300 font-medium text-sm flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" /> Adicionar Produto
+              </button>
+            </div>
+          </div>
+
+          <div className="lg:col-span-3 space-y-6">
+            <div className="glass-card p-6">
+              <input
+                type="text"
+                value={activeProfile.name}
+                onChange={(e) => updateProfile('name', e.target.value)}
+                className="text-2xl font-bold bg-transparent border-none outline-none focus:ring-0 p-0 text-slate-800 w-full mb-6"
+              />
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Preço de Venda (R$)</label>
+                    <input type="number" step="0.01" value={activeProfile.salePrice} onChange={(e) => updateProfile('salePrice', e.target.value)} className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-500/20 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Custo dos Insumos (R$)</label>
+                    <input type="number" step="0.01" value={activeProfile.ingredientsCost} onChange={(e) => updateProfile('ingredientsCost', e.target.value)} className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-500/20 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Despesas Variáveis por un. (R$)</label>
+                    <p className="text-xs text-slate-500 mb-1">Embalagens, taxas de cartão, comissões.</p>
+                    <input type="number" step="0.01" value={activeProfile.variableCosts} onChange={(e) => updateProfile('variableCosts', e.target.value)} className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-500/20 outline-none" />
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Despesas Fixas Mensais (R$)</label>
+                    <p className="text-xs text-slate-500 mb-1">Luz, água, aluguel, salários.</p>
+                    <input type="number" step="0.01" value={activeProfile.fixedCosts} onChange={(e) => updateProfile('fixedCosts', e.target.value)} className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-500/20 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Expectativa de Vendas (un/mês)</label>
+                    <p className="text-xs text-slate-500 mb-1">Quantos {activeProfile.name} você espera vender?</p>
+                    <input type="number" value={activeProfile.salesExpectation} onChange={(e) => updateProfile('salesExpectation', e.target.value)} className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-500/20 outline-none" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="glass-card p-4 bg-indigo-50/50">
+                <p className="text-sm font-medium text-slate-500 mb-1">CMV (Custo Merc. Vendida)</p>
+                <p className="text-2xl font-bold text-slate-800">{formatCurrency(cmv)}</p>
+                <p className="text-xs text-slate-500 mt-1">Insumos + Var. Unitária</p>
+              </div>
+              <div className="glass-card p-4 bg-blue-50/50">
+                <p className="text-sm font-medium text-slate-500 mb-1">Markup</p>
+                <p className="text-2xl font-bold text-slate-800">{markup.toFixed(2)}x</p>
+                <p className="text-xs text-slate-500 mt-1">Multiplicador do custo</p>
+              </div>
+              <div className="glass-card p-4 bg-amber-50/50">
+                <p className="text-sm font-medium text-slate-500 mb-1">Ponto de Equilíbrio</p>
+                <p className="text-2xl font-bold text-slate-800">{Math.ceil(breakEven)} un.</p>
+                <p className="text-xs text-slate-500 mt-1">P/ pagar as despesas fixas</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="glass-card p-6 border-l-4 border-emerald-500">
+                <p className="text-sm font-medium text-slate-500 mb-1 flex items-center gap-2">
+                  Margem de Contribuição
+                  <Info className="w-4 h-4" />
+                </p>
+                <p className="text-3xl font-bold text-emerald-600">{formatCurrency(contributionMargin)}</p>
+                <p className="text-sm font-medium text-emerald-700/70">{contributionMarginPct.toFixed(1)}% do preço de venda</p>
+                <p className="text-xs text-slate-500 mt-2">O quanto sobra de cada unidade vendida para pagar as contas fixas e gerar lucro.</p>
+              </div>
+
+              <div className={cn("glass-card p-6 border-l-4", netProfit > 0 ? "border-brand-500" : "border-red-500")}>
+                <p className="text-sm font-medium text-slate-500 mb-1 flex items-center gap-2">
+                  Margem de Lucro Real
+                  <Info className="w-4 h-4" />
+                </p>
+                <p className={cn("text-3xl font-bold", netProfit > 0 ? "text-brand-600" : "text-red-600")}>
+                  {formatCurrency(netProfit)}
+                </p>
+                <p className={cn("text-sm font-medium", netProfit > 0 ? "text-brand-700/70" : "text-red-700/70")}>
+                  {netProfitPct.toFixed(1)}% de lucro líquido
+                </p>
+                <p className="text-xs text-slate-500 mt-2">O lucro de verdade que vai pro seu bolso, já descontando a fatia das contas fixas.</p>
+              </div>
+            </div>
+
+            <div className="glass-card p-6 bg-slate-800 text-white">
+              <h3 className="font-bold flex items-center gap-2 mb-4 text-amber-400">
+                <AlertTriangle className="w-5 h-5" />
+                Erros Comuns de Precificação
+              </h3>
+              <div className="space-y-4 text-sm text-slate-300">
+                <p><strong>1. Confundir Markup com Margem de Lucro:</strong> Se seu custo é R$ 5 e você vende a R$ 10 (Markup 2x), seu lucro não é 100%. A margem máxima de lucro num produto é sempre inferior a 100%, pois o custo sempre ocupará uma porcentagem do preço final. Neste caso, a margem bruta é 50%.</p>
+                <p><strong>2. Esquecer Custos Invisíveis:</strong> Muitas pessoas não colocam no custo a taxa da maquininha, o frete pago na matéria-prima ou as embalagens.</p>
+                <p><strong>3. Ignorar as Despesas Fixas:</strong> O salário que você tira e as contas não somem. É preciso diluí-las na sua expectativa de vendas para saber o Lucro Real.</p>
+              </div>
+            </div>
+
+            <div className="glass-card p-6 border-l-4 border-blue-500">
+              <h3 className="font-bold flex items-center gap-2 mb-4 text-blue-800">
+                Precificação baseada em percentual
+              </h3>
+              <div className="flex w-full h-4 rounded-full overflow-hidden bg-slate-100 mb-4">
+                <div style={{ width: `${(cmv / (activeProfile.salePrice || 1)) * 100}%` }} className="bg-rose-400" title="CMV"></div>
+                <div style={{ width: `${(Math.max(0, fixedCostPerUnit) / (activeProfile.salePrice || 1)) * 100}%` }} className="bg-amber-400" title="Despesas Fixas"></div>
+                <div style={{ width: `${(Math.max(0, netProfit) / (activeProfile.salePrice || 1)) * 100}%` }} className="bg-emerald-400" title="Lucro Líquido"></div>
+              </div>
+              <div className="flex gap-4 text-xs font-medium text-slate-600">
+                <div className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-rose-400"></span> CMV ({(cmv / (activeProfile.salePrice || 1) * 100).toFixed(1)}%)</div>
+                <div className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-amber-400"></span> Rateio Fixo ({(Math.max(0, fixedCostPerUnit) / (activeProfile.salePrice || 1) * 100).toFixed(1)}%)</div>
+                <div className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-emerald-400"></span> Lucro ({(Math.max(0, netProfitPct)).toFixed(1)}%)</div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    );
+  };
 
 
   return (
@@ -1420,7 +1607,7 @@ export default function App() {
             <div className="w-10 h-10 bg-brand-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-brand-500/20">
               <TrendingUp className="w-6 h-6" />
             </div>
-            <span className="text-xl font-bold tracking-tight">BrownieManager</span>
+            <span className="text-xl font-bold tracking-tight">Beik Brownies & Cookies</span>
           </div>
           <button
             onClick={() => setIsSidebarOpen(false)}
@@ -1435,7 +1622,8 @@ export default function App() {
             { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
             { id: 'sales-points', label: 'Pontos de Vendas', icon: Store, activeOn: ['sales-points', 'point-detail'] },
             { id: 'expenses', label: 'Despesas', icon: Receipt },
-            { id: 'reports', label: 'Histórico', icon: Filter }
+            { id: 'reports', label: 'Histórico', icon: Filter },
+            { id: 'pricing', label: 'Precificação', icon: Calculator }
           ].map((item) => (
             <button
               key={item.id}
@@ -1477,7 +1665,7 @@ export default function App() {
             <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center text-white">
               <TrendingUp className="w-5 h-5" />
             </div>
-            <span className="font-bold text-slate-900">BrownieManager</span>
+            <span className="font-bold text-slate-900 truncate max-w-[200px]">Beik Brownies & Cookies</span>
           </div>
           <button
             onClick={() => setIsSidebarOpen(true)}
@@ -1506,6 +1694,7 @@ export default function App() {
               {currentView === 'point-detail' && renderPointDetail()}
               {currentView === 'expenses' && renderExpenses()}
               {currentView === 'reports' && renderReports()}
+              {currentView === 'pricing' && renderPricing()}
             </motion.div>
           </AnimatePresence>
         </main>
