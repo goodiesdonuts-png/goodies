@@ -1452,7 +1452,7 @@ export default function App() {
 
     const addPricingItem = (category: 'productionItems' | 'packagingItems' | 'timeItems') => {
       const items = activeProfile[category] || [];
-      updateProfile(category, [...items, { id: String(Date.now()), name: '', quantity: 1, totalValue: 0 }]);
+      updateProfile(category, [...items, { id: String(Date.now()), name: '', unit: 'un', packageQuantity: 1, packagePrice: 0, usedQuantity: 1 }]);
     };
 
     const updatePricingItem = (category: 'productionItems' | 'packagingItems' | 'timeItems', itemId: string, field: string, value: any) => {
@@ -1465,7 +1465,16 @@ export default function App() {
       updateProfile(category, items.filter((item: any) => item.id !== itemId));
     };
 
-    const sumItems = (items: any[]) => items.reduce((acc, item) => acc + (Number(item.totalValue) || 0), 0);
+    const getItemCost = (item: any) => {
+      // Support legacy items that only had quantity and totalValue
+      const pkgQty = item.packageQuantity ?? 1;
+      const pkgPrice = item.packagePrice ?? item.totalValue ?? 0;
+      const usedQty = item.usedQuantity ?? item.quantity ?? 1;
+      if (pkgQty === 0) return 0;
+      return (pkgPrice / pkgQty) * usedQty;
+    };
+
+    const sumItems = (items: any[]) => items.reduce((acc, item) => acc + getItemCost(item), 0);
 
     const totalProduction = sumItems(activeProfile.productionItems || []);
     const totalPackaging = sumItems(activeProfile.packagingItems || []);
@@ -1495,57 +1504,92 @@ export default function App() {
           </button>
         </div>
         <div className="bg-white overflow-x-auto">
-          <table className="w-full text-left min-w-[500px]">
+          <table className="w-full text-left min-w-[800px]">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100 text-xs font-semibold text-slate-500 uppercase">
-                <th className="px-4 py-2 w-1/2">Material / Item</th>
-                <th className="px-4 py-2 w-1/5 text-center">Quantidade</th>
-                <th className="px-4 py-2 w-1/4 text-right">Valor (R$)</th>
-                <th className="px-4 py-2 w-12"></th>
+                <th className="px-4 py-2 w-1/4">Material / Item</th>
+                <th className="px-4 py-2 w-24 text-center">Unidade</th>
+                <th className="px-4 py-2 w-28 text-center" title="Quantidade que vem na embalagem fechada">Qtd. Pacote</th>
+                <th className="px-4 py-2 w-28 text-center" title="Preço pago pela embalagem fechada">R$ Pacote</th>
+                <th className="px-4 py-2 w-28 text-center" title="Quantidade utilizada na receita">Qtd. Usada</th>
+                <th className="px-4 py-2 w-28 text-right">Custo Calc.</th>
+                <th className="px-4 py-2 w-10"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {items.map((item) => (
-                <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
-                  <td className="px-4 py-2">
-                    <input 
-                      type="text" 
-                      value={item.name} 
-                      onChange={(e) => updatePricingItem(category, item.id, 'name', e.target.value)}
-                      placeholder="Ex: Papel Offset"
-                      className="w-full bg-transparent text-sm font-medium text-slate-700 outline-none focus:text-brand-600"
-                    />
-                  </td>
-                  <td className="px-4 py-2">
-                    <input 
-                      type="number" 
-                      value={item.quantity} 
-                      onChange={(e) => updatePricingItem(category, item.id, 'quantity', Number(e.target.value))}
-                      className="w-full bg-transparent text-sm text-center text-slate-600 outline-none"
-                    />
-                  </td>
-                  <td className="px-4 py-2">
-                    <input 
-                      type="number" 
-                      step="0.01"
-                      value={item.totalValue} 
-                      onChange={(e) => updatePricingItem(category, item.id, 'totalValue', Number(e.target.value))}
-                      className="w-full bg-transparent text-sm text-right font-semibold text-slate-800 outline-none"
-                    />
-                  </td>
-                  <td className="px-4 py-2 text-right">
-                    <button 
-                      onClick={() => removePricingItem(category, item.id)}
-                      className="text-slate-300 hover:text-red-500 transition-colors p-1"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {items.map((item) => {
+                const itemCost = getItemCost(item);
+                return (
+                  <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
+                    <td className="px-4 py-2">
+                      <input 
+                        type="text" 
+                        value={item.name} 
+                        onChange={(e) => updatePricingItem(category, item.id, 'name', e.target.value)}
+                        placeholder="Ex: Chocolate 50%"
+                        className="w-full bg-transparent text-sm font-medium text-slate-700 outline-none focus:text-brand-600"
+                      />
+                    </td>
+                    <td className="px-4 py-2">
+                      <select
+                        value={item.unit ?? 'un'}
+                        onChange={(e) => updatePricingItem(category, item.id, 'unit', e.target.value)}
+                        className="w-full bg-transparent text-sm text-center text-slate-600 outline-none"
+                      >
+                        <option value="g">grama (g)</option>
+                        <option value="kg">quilo (kg)</option>
+                        <option value="ml">ml</option>
+                        <option value="l">Litro (L)</option>
+                        <option value="un">unidade</option>
+                        <option value="cx">caixa</option>
+                      </select>
+                    </td>
+                    <td className="px-4 py-2">
+                      <input 
+                        type="number" 
+                        value={item.packageQuantity ?? 1} 
+                        onChange={(e) => updatePricingItem(category, item.id, 'packageQuantity', Number(e.target.value))}
+                        className="w-full bg-transparent text-sm text-center text-slate-600 outline-none"
+                        placeholder="Ex: 1000"
+                      />
+                    </td>
+                    <td className="px-4 py-2">
+                      <input 
+                        type="number" 
+                        step="0.01"
+                        value={item.packagePrice ?? item.totalValue ?? 0} 
+                        onChange={(e) => updatePricingItem(category, item.id, 'packagePrice', Number(e.target.value))}
+                        className="w-full bg-transparent text-sm text-center font-medium text-slate-600 outline-none"
+                        placeholder="R$"
+                      />
+                    </td>
+                    <td className="px-4 py-2">
+                      <input 
+                        type="number" 
+                        step="0.01"
+                        value={item.usedQuantity ?? item.quantity ?? 1} 
+                        onChange={(e) => updatePricingItem(category, item.id, 'usedQuantity', Number(e.target.value))}
+                        className="w-full bg-transparent text-sm text-center text-slate-600 outline-none"
+                        placeholder="Qtd"
+                      />
+                    </td>
+                    <td className="px-4 py-2 text-right text-sm font-bold text-brand-700">
+                      {formatCurrency(itemCost)}
+                    </td>
+                    <td className="px-4 py-2 text-right">
+                      <button 
+                        onClick={() => removePricingItem(category, item.id)}
+                        className="text-slate-300 hover:text-red-500 transition-colors p-1"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
               {items.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-6 text-center text-sm text-slate-400 italic">
+                  <td colSpan={7} className="px-4 py-6 text-center text-sm text-slate-400 italic">
                     Nenhum item cadastrado.
                   </td>
                 </tr>
@@ -1553,7 +1597,7 @@ export default function App() {
             </tbody>
             <tfoot>
               <tr className="bg-slate-50/50">
-                <td colSpan={2} className="px-4 py-3 text-xs font-bold text-slate-500 uppercase text-right">Subtotal {title}</td>
+                <td colSpan={5} className="px-4 py-3 text-xs font-bold text-slate-500 uppercase text-right">Subtotal {title}</td>
                 <td className="px-4 py-3 text-sm font-bold text-slate-800 text-right">{formatCurrency(total)}</td>
                 <td></td>
               </tr>
