@@ -3,6 +3,8 @@ export interface SalesPoint {
   name: string;
   phone?: string;
   user_id?: string;
+  delivery_frequency?: string;
+  preferred_days?: string;
 }
 
 export interface SaleEntry {
@@ -23,6 +25,10 @@ export interface SaleEntry {
   product_name?: string;
   reference_month?: string;
   user_id?: string;
+  current_inventory?: number;
+  sales_since_last_visit?: number;
+  notes?: string;
+  status?: 'CONCLUIDO' | 'AGENDADO' | 'ATRASADO';
 }
 
 export interface Expense {
@@ -42,3 +48,4 @@ export interface Stats {
   totalExpenses: number;
   balance: number;
 }
+
